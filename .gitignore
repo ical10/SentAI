@@ -1,0 +1,23 @@
+# Dependencies
+node_modules/
+bun.lock
+
+# Build artifacts
+dist/
+*.wasm
+.cre_build_tmp*
+
+# Environment & secrets
+*.env
+.env.*
+secrets.yaml
+
+# IDE & OS
+.DS_Store
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# TypeScript
+*.tsbuildinfo
