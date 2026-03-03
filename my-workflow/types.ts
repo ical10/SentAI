@@ -145,3 +145,19 @@ export interface PolymarketMarket {
 	noPrice: string; // Current NO token price (e.g. "0.35")
 }
 
+/*********************************
+ * Chainlink Data Feed Types
+ *********************************/
+
+/**
+ * Result from Chainlink AggregatorV3Interface.latestRoundData().
+ * Used for on-chain price reads via EVMClient.
+ * Answer has 8 decimals (e.g., 9876543210000 = $98,765.43210000).
+ */
+export interface ChainlinkPriceData {
+	roundId: bigint;
+	answer: bigint; // Price with 8 decimals
+	startedAt: bigint;
+	updatedAt: bigint;
+	answeredInRound: bigint;
+}
