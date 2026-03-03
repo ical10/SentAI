@@ -67,3 +67,65 @@ export const GrokDecisionSchema = z.object({
 /** Validated decision type inferred from the Grok schema. */
 export type GrokDecision = z.infer<typeof GrokDecisionSchema>;
 
+/*********************************
+ * xAI Grok API Types
+ *********************************/
+
+/**
+ * Response wrapper from the Grok HTTP request.
+ * Contains both the parsed result and raw response metadata.
+ */
+export type GrokResponse = {
+	statusCode: number; // HTTP status from xAI API
+	grokResponse: string; // The structured JSON string from Grok (matches GrokDecisionSchema)
+	model: string; // The model used, e.g. "grok-4-1-fast-reasoning"
+	id: string; // Unique response ID from xAI
+}
+
+/**
+ * A single message in the xAI Responses API input array.
+ * System prompt and user prompt are both passed as input messages.
+ * Note: `instructions` param is NOT supported — use input messages instead.
+ * See: https://docs.x.ai/developers/model-capabilities/text/generate-text
+ */
+export interface XAIInputMessage {
+	role: "system" | "user";
+	content: string;
+}
+
+/**
+ * Request payload structure for xAI Responses API (POST /v1/responses).
+ * See: https://docs.x.ai/developers/model-capabilities/text/structured-outputs
+ */
+export interface XAIResponsesRequest {
+	model: string;
+	input: XAIInputMessage[];
+	tools: { type: string; from_date?: string }[];
+	text: {
+		format: {
+			type: "json_schema";
+			name: string;
+			schema: Record<string, unknown>;
+			strict: boolean;
+		};
+	};
+	store: boolean; // false — we don't need stateful conversations
+}
+
+/**
+ * Response structure from xAI Responses API.
+ * The structured output is in output[].content[].text for message items.
+ * See: https://docs.x.ai/developers/model-capabilities/text/structured-outputs
+ */
+export interface XAIResponsesApiResponse {
+	id: string;
+	model: string;
+	output: {
+		type: string; // "message", "reasoning", "tool_call", etc.
+		content?: {
+			type: string; // "output_text"
+			text: string; // The structured JSON string
+		}[];
+	}[];
+}
+
