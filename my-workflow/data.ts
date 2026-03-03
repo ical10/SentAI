@@ -17,8 +17,54 @@ interface GammaMarketRaw {
 	closed: boolean;
 }
 
-interface MarketsResponse {
-	markets: PolymarketMarket[];
+// We define token aliases using Map
+// for faster and deterministic lookups
+const TOKEN_ALIASES = new Map<string, string>([
+	["BTC", "BTC"],
+	["BITCOIN", "BTC"],
+	["ETH", "ETH"],
+	["ETHEREUM", "ETH"],
+]);
+
+/**
+ * Checks if a question includes a token alias or not,
+ * which might indicates if it is crypto market-related question.
+ *
+ * @param question - UNTRUSTED market question
+ * @returns a boolean to indicate if it's a crypto market question
+ */
+const isCryptoMarket = (question: string): boolean => {
+	const upperCased = question.toUpperCase();
+	for (const alias of TOKEN_ALIASES.keys()) {
+		if (upperCased.includes(alias)) return true;
+	}
+	return false;
+};
+
+/**
+ * Handles parsing of outcomePrice.
+ *
+ * @param raw - Raw value of outcomePrice
+ * @returns parsed prices in the form of [yesPrice, noPrice]
+ *
+ */
+const parseOutcomePrices = (raw: string | string[]): [string, string] => {
+	let prices: string[];
+	const defaultPrices: [string, string] = ["0.50", "0.50"];
+
+	if (Array.isArray(raw)) {
+		prices = raw;
+	} else if (typeof raw === "string") {
+		try {
+			prices = JSON.parse(raw);
+		} catch {
+			return defaultPrices;
+		}
+	} else {
+		return defaultPrices;
+	}
+
+	return [prices[0] ?? "0.50", prices[1] ?? "0.50"];
 }
 
 
@@ -26,10 +72,10 @@ interface MarketsResponse {
  * Builds and sends a Polymarket Gamma API request via CRE HTTPSendRequester.
  *
  * Returns a closure matching the HTTPClient.sendRequest() callback signature:
- *   (sendRequester: HTTPSendRequester, config: Config) => MarketsResponse
+ *   (sendRequester: HTTPSendRequester, config: Config) => PolymarketMarket[]
  *
  */
-const FetchMarkets = (sendRequester: HTTPSendRequester, _config: Config): MarketsResponse => {
+const FetchMarkets = (sendRequester: HTTPSendRequester, _config: Config): PolymarketMarket[] => {
 	// 1. GET Polymarket's active markets with a conservative limit=3
 	// to avoid filling up xAI's context
 	const resp = sendRequester
@@ -54,16 +100,19 @@ const FetchMarkets = (sendRequester: HTTPSendRequester, _config: Config): Market
 	//    - Only the first three markets
 	//    - Prices are properly parsed to follow expected results
 	const markets: PolymarketMarket[] = rawMarkets
-		.filter((m) => m.active && !m.closed) // TODO: need to check if the question is contains keyword related crypto tokens
+		.filter((m) => m.active && !m.closed && isCryptoMarket(m.question))
 		.slice(0, MAX_MARKETS)
 		.map((m) => {
-			//TODO: need to parse outcomePrices due to its type
-			// and pass down as returned object
+			const [yesPrice, noPrice] = parseOutcomePrices(m.outcomePrices);
 			return {
 				market_slug: m.slug,
 				question: m.question,
+				yesPrice,
+				noPrice,
 			};
-		})
+		});
+
+	return markets;
 }
 
 /**
@@ -75,7 +124,9 @@ const FetchMarkets = (sendRequester: HTTPSendRequester, _config: Config): Market
 export const fetchActiveMarkets = (runtime: Runtime<Config>): PolymarketMarket[] => {
 	const httpClient = new cre.capabilities.HTTPClient();
 
-	const result: MarketsResponse = httpClient
-		.sendRequest(runtime, FetchMarkets, consensusIdenticalAggregation<MarketsResponse>())(runtime.config)
+	const result: PolymarketMarket[] = httpClient
+		.sendRequest(runtime, FetchMarkets, consensusIdenticalAggregation<PolymarketMarket[]>())(runtime.config)
 		.result();
+
+	return result;
 }
