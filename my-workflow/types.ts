@@ -1,3 +1,7 @@
+// Type definitions and schemas for the SentAI CRE workflow.
+// Includes configuration validation, xAI Grok API types,
+// Polymarket market types, and Chainlink Data Feed types.
+
 import { z } from "zod"
 
 // config.staging.json should match this schema
