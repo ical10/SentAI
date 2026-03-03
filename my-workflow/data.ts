@@ -187,3 +187,22 @@ export const fetchPrices = (runtime: Runtime<Config>, tokens: string[]): Record<
 
 	return prices;
 };
+
+/**
+ * Extracts token name from slug.
+ *
+ * @param markets - Trusted market metadata (slugs, YES/NO prices)
+ * @returns an array of extracted token names (sorted)
+ */
+export const extractTokens = (markets: PolymarketMarket[]): string[] => {
+	const tokens = new Set<string>();
+
+	for (const market of markets) {
+		const token = market.market_slug.split("-")[0].toUpperCase();
+		if (token) {
+			tokens.add(token);
+		}
+	}
+
+	return Array.from(tokens).sort();
+};
