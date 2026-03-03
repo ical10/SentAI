@@ -129,3 +129,19 @@ export interface XAIResponsesApiResponse {
 	}[];
 }
 
+/*********************************
+ * Polymarket Types
+ *********************************/
+
+/**
+ * Polymarket market data from the Gamma API.
+ * Contains the fields we need for sentiment analysis and order placement.
+ * Source: GET https://gamma-api.polymarket.com/markets
+ */
+export interface PolymarketMarket {
+	market_slug: string; // URL slug for the market
+	question: string; // The market question (UNTRUSTED — prompt injection risk)
+	yesPrice: string; // Current YES token price (e.g. "0.65")
+	noPrice: string; // Current NO token price (e.g. "0.35")
+}
+
