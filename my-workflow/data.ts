@@ -1,12 +1,25 @@
 // Polymarket-first data fetchers compatible with CRE workflow.
 import {
+	EVMClient,
+	LAST_FINALIZED_BLOCK_NUMBER,
 	consensusIdenticalAggregation,
 	cre,
+	encodeCallMsg,
+	getNetwork,
 	ok,
 	type HTTPSendRequester,
 	type Runtime,
 } from "@chainlink/cre-sdk";
+
 import { type Config, type PolymarketMarket } from "./types.ts";
+import { AggregatorV3Interface } from "../contracts/abi";
+import {
+	type Address,
+	bytesToHex,
+	decodeFunctionResult,
+	encodeFunctionData,
+	zeroAddress,
+} from "viem";
 
 interface GammaMarketRaw {
 	slug: string;
@@ -116,3 +129,61 @@ export const fetchActiveMarkets = (runtime: Runtime<Config>): PolymarketMarket[]
 	return result;
 };
 
+/**
+ * Fetch prices for a list of supported tokens.
+ *
+ * @param runtime - CRE runtime instance with config and secrets
+ * @param tokens - an array of supported tokens
+ * @returns price for each token in USD denomination
+ */
+export const fetchPrices = (runtime: Runtime<Config>, tokens: string[]): Record<string, bigint> => {
+	const config = runtime.config;
+	const network = getNetwork({
+		chainFamily: "evm",
+		chainSelectorName: config.chainSelectorName,
+		isTestnet: true,
+	});
+
+	if (!network) {
+		throw new Error(`Network not found for chain selector: ${config.chainSelectorName}`);
+	}
+
+	const evmClient = new EVMClient(network.chainSelector.selector);
+	const prices: Record<string, bigint> = {};
+
+	// Read feeds sequentially in sorted order for determinism
+	for (const token of tokens.sort()) {
+		const proxyAddress = config.dataFeeds[token];
+		if (!proxyAddress) {
+			runtime.log(`No data feed configured for ${token} - skipping`);
+			continue;
+		}
+
+		const callData = encodeFunctionData({
+			abi: AggregatorV3Interface,
+			functionName: "latestRoundData",
+		});
+
+		const contractCall = evmClient
+			.callContract(runtime, {
+				call: encodeCallMsg({
+					from: zeroAddress,
+					to: proxyAddress as Address,
+					data: callData,
+				}),
+				blockNumber: LAST_FINALIZED_BLOCK_NUMBER,
+			})
+			.result();
+
+		const [_roundId, answer] = decodeFunctionResult({
+			abi: AggregatorV3Interface,
+			functionName: "latestRoundData",
+			data: bytesToHex(contractCall.data),
+		});
+
+		prices[token] = answer;
+		runtime.log(`${token} in USD: $${(Number(answer) / 1e8).toFixed(2)}`);
+	}
+
+	return prices;
+};
