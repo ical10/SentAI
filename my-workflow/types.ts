@@ -3,8 +3,8 @@
 // Polymarket market types, and Chainlink Data Feed types.
 
 import { z } from "zod"
+import { ETH_ADDRESS_REGEX } from "./constants.ts"
 
-// config.staging.json should match this schema
 /*********************************
  * Configuration Schemas
  *********************************/
@@ -18,7 +18,7 @@ export const configSchema = z.object({
 	grokModel: z.string().min(1, "Grok model name is required"),
 	loggerAddress: z
 		.string()
-		.regex(ethAddressRegex, "loggerAddress must be a 0x-prefixed 20-byte hex"),
+		.regex(ETH_ADDRESS_REGEX, "loggerAddress must be a 0x-prefixed 20-byte hex"),
 	chainSelectorName: z.string().min(1, "Chain selector name is required"),
 	gasLimit: z
 		.string()
@@ -26,7 +26,7 @@ export const configSchema = z.object({
 		.refine(val => Number(val) > 0, { message: "gasLimit must be greater than 0" }),
 	dataFeeds: z.record(
 		z.string().min(1),
-		z.string().regex(ethAddressRegex, "Data feed proxy must be a valid Ethereum address"),
+		z.string().regex(ETH_ADDRESS_REGEX, "Data feed proxy must be a valid Ethereum address"),
 	),
 });
 
