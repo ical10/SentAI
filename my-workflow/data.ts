@@ -7,7 +7,6 @@ import {
 	type Runtime,
 } from "@chainlink/cre-sdk";
 import { type Config, type PolymarketMarket } from "./types.ts";
-import { MAX_MARKETS } from "./constants.ts";
 
 interface GammaMarketRaw {
 	slug: string;
@@ -17,29 +16,8 @@ interface GammaMarketRaw {
 	closed: boolean;
 }
 
-// We define token aliases using Map
-// for faster and deterministic lookups
-const TOKEN_ALIASES = new Map<string, string>([
-	["BTC", "BTC"],
-	["BITCOIN", "BTC"],
-	["ETH", "ETH"],
-	["ETHEREUM", "ETH"],
-]);
-
-/**
- * Checks if a question includes a token alias or not,
- * which might indicates if it is crypto market-related question.
- *
- * @param question - UNTRUSTED market question
- * @returns a boolean to indicate if it's a crypto market question
- */
-const isCryptoMarket = (question: string): boolean => {
-	const upperCased = question.toUpperCase();
-	for (const alias of TOKEN_ALIASES.keys()) {
-		if (upperCased.includes(alias)) return true;
-	}
-	return false;
-};
+// Fetch only supported tokens on Polymarket
+const SUPPORTED_TOKENS = ["btc", "eth"] as const;
 
 /**
  * Handles parsing of outcomePrice.
@@ -75,13 +53,19 @@ const parseOutcomePrices = (raw: string | string[]): [string, string] => {
  *   (sendRequester: HTTPSendRequester, config: Config) => PolymarketMarket[]
  *
  */
-const FetchMarkets = (sendRequester: HTTPSendRequester, _config: Config): PolymarketMarket[] => {
-	// 1. GET Polymarket's active markets with a conservative limit=3
-	// to avoid filling up xAI's context
+const FetchMarkets = (nowInMs: number) => (sendRequester: HTTPSendRequester, _config: Config): PolymarketMarket[] => {
+	// 1. Get current 15-min window timestamp using consensus-safe timestamp
+	// TODO: convert Math.floor(...) into a helper function
+	const timestamp = Math.floor(nowInMs / 1000 / 900) * 900;
+
+	// 2. Build slugs for each token
+	const slugs = SUPPORTED_TOKENS.map((token) => `${token}-updown-15m-${timestamp}`);
+
+	// 3. Fetch markets by slug (comma-separated)
 	const resp = sendRequester
 		.sendRequest({
 			method: "GET",
-			url: `https://gamma-api.polymarket.com/markets?active=true&closed=false&limit=${MAX_MARKETS}`
+			url: `https://gamma-api.polymarket.com/markets?slug=${slugs.join(",")}&active=true&closed=false`
 		})
 		.result();
 
@@ -93,24 +77,19 @@ const FetchMarkets = (sendRequester: HTTPSendRequester, _config: Config): Polyma
 
 	const rawMarkets: GammaMarketRaw[] = JSON.parse(bodyText);
 
-	// 2. Parse rawMarkets into validated market data
+	// 4. Parse rawMarkets into validated market data
 	//   Validated data:
-	//    - Only active markets and not closed
-	//    - Is a crypto market using  isCryptoMarket
-	//    - Only the first three markets
+	//    - Is a crypto market through slug-based fetch calls
 	//    - Prices are properly parsed to follow expected results
-	const markets: PolymarketMarket[] = rawMarkets
-		.filter((m) => m.active && !m.closed && isCryptoMarket(m.question))
-		.slice(0, MAX_MARKETS)
-		.map((m) => {
-			const [yesPrice, noPrice] = parseOutcomePrices(m.outcomePrices);
-			return {
-				market_slug: m.slug,
-				question: m.question,
-				yesPrice,
-				noPrice,
-			};
-		});
+	const markets: PolymarketMarket[] = rawMarkets.map((m) => {
+		const [yesPrice, noPrice] = parseOutcomePrices(m.outcomePrices);
+		return {
+			market_slug: m.slug,
+			question: m.question,
+			yesPrice,
+			noPrice,
+		};
+	});
 
 	return markets;
 }
@@ -123,9 +102,10 @@ const FetchMarkets = (sendRequester: HTTPSendRequester, _config: Config): Polyma
  */
 export const fetchActiveMarkets = (runtime: Runtime<Config>): PolymarketMarket[] => {
 	const httpClient = new cre.capabilities.HTTPClient();
+	const nowInMs = runtime.now().getTime();
 
 	const result: PolymarketMarket[] = httpClient
-		.sendRequest(runtime, FetchMarkets, consensusIdenticalAggregation<PolymarketMarket[]>())(runtime.config)
+		.sendRequest(runtime, FetchMarkets(nowInMs), consensusIdenticalAggregation<PolymarketMarket[]>())(runtime.config)
 		.result();
 
 	return result;
