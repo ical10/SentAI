@@ -43,8 +43,7 @@ const parseOutcomePrices = (raw: string | string[]): [string, string] => {
 	}
 
 	return [prices[0] ?? "0.50", prices[1] ?? "0.50"];
-}
-
+};
 
 /**
  * Builds and sends a Polymarket Gamma API request via CRE HTTPSendRequester.
@@ -53,46 +52,50 @@ const parseOutcomePrices = (raw: string | string[]): [string, string] => {
  *   (sendRequester: HTTPSendRequester, config: Config) => PolymarketMarket[]
  *
  */
-const FetchMarkets = (nowInMs: number) => (sendRequester: HTTPSendRequester, _config: Config): PolymarketMarket[] => {
-	// 1. Get current 15-min window timestamp using consensus-safe timestamp
-	// TODO: convert Math.floor(...) into a helper function
-	const timestamp = Math.floor(nowInMs / 1000 / 900) * 900;
+const FetchMarkets =
+	(nowInMs: number) =>
+	(sendRequester: HTTPSendRequester, _config: Config): PolymarketMarket[] => {
+		// 1. Get current 15-min window timestamp using consensus-safe timestamp
+		// TODO: convert Math.floor(...) into a helper function
+		const timestamp = Math.floor(nowInMs / 1000 / 900) * 900;
 
-	// 2. Build slugs for each token
-	const slugs = SUPPORTED_TOKENS.map((token) => `${token}-updown-15m-${timestamp}`);
+		// 2. Build slugs for each token
+		const slugs = SUPPORTED_TOKENS.map((token) => `${token}-updown-15m-${timestamp}`);
 
-	// 3. Fetch markets by slug (comma-separated)
-	const resp = sendRequester
-		.sendRequest({
-			method: "GET",
-			url: `https://gamma-api.polymarket.com/markets?slug=${slugs.join(",")}&active=true&closed=false`
-		})
-		.result();
+		// 3. Fetch markets by slug (comma-separated)
+		const resp = sendRequester
+			.sendRequest({
+				method: "GET",
+				url: `https://gamma-api.polymarket.com/markets?slug=${slugs.join(",")}&active=true&closed=false`,
+			})
+			.result();
 
-	const bodyText = new TextDecoder().decode(resp.body);
+		const bodyText = new TextDecoder().decode(resp.body);
 
-	if (!ok(resp)) {
-		throw new Error(`Polymarket HTTP request failed with status: ${resp.statusCode}. Error: ${bodyText}`);
-	}
+		if (!ok(resp)) {
+			throw new Error(
+				`Polymarket HTTP request failed with status: ${resp.statusCode}. Error: ${bodyText}`,
+			);
+		}
 
-	const rawMarkets: GammaMarketRaw[] = JSON.parse(bodyText);
+		const rawMarkets: GammaMarketRaw[] = JSON.parse(bodyText);
 
-	// 4. Parse rawMarkets into validated market data
-	//   Validated data:
-	//    - Is a crypto market through slug-based fetch calls
-	//    - Prices are properly parsed to follow expected results
-	const markets: PolymarketMarket[] = rawMarkets.map((m) => {
-		const [yesPrice, noPrice] = parseOutcomePrices(m.outcomePrices);
-		return {
-			market_slug: m.slug,
-			question: m.question,
-			yesPrice,
-			noPrice,
-		};
-	});
+		// 4. Parse rawMarkets into validated market data
+		//   Validated data:
+		//    - Is a crypto market through slug-based fetch calls
+		//    - Prices are properly parsed to follow expected results
+		const markets: PolymarketMarket[] = rawMarkets.map((m) => {
+			const [yesPrice, noPrice] = parseOutcomePrices(m.outcomePrices);
+			return {
+				market_slug: m.slug,
+				question: m.question,
+				yesPrice,
+				noPrice,
+			};
+		});
 
-	return markets;
-}
+		return markets;
+	};
 
 /**
  * Fetch currently active markets on Polymarket for xAI Responses inputs.
@@ -105,8 +108,11 @@ export const fetchActiveMarkets = (runtime: Runtime<Config>): PolymarketMarket[]
 	const nowInMs = runtime.now().getTime();
 
 	const result: PolymarketMarket[] = httpClient
-		.sendRequest(runtime, FetchMarkets(nowInMs), consensusIdenticalAggregation<PolymarketMarket[]>())(runtime.config)
+		.sendRequest(runtime, FetchMarkets(
+				nowInMs,
+			), consensusIdenticalAggregation<PolymarketMarket[]>())(runtime.config)
 		.result();
 
 	return result;
-}
+};
+
