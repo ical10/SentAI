@@ -1,7 +1,7 @@
 {
 	"schedule": "0 */15 * * *",
 	"grokModel": "grok-4-1-fast-reasoning",
-	"loggerAddress": "0x0000000000000000000000000000000000000000",
+	"loggerAddress": "0x6dE16Ad5bcD1073edEfA7dCa98e350E1C9840c36",
 	"chainSelectorName": "ethereum-testnet-sepolia",
 	"gasLimit": "500000",
 	"dataFeeds": {
