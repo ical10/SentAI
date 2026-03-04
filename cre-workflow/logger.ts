@@ -57,6 +57,8 @@ export const logDecision = (runtime: Runtime<Config>, decision: GrokDecision) =>
 	// 4. Submit on-chain
 	const writeResult = evmClient
 		.writeReport(runtime, {
+			//TODO: needs to create and deploy SentAILogger.sol first
+			// to get loggerAddress
 			receiver: runtime.config.loggerAddress,
 			report: reportResponse,
 			gasConfig: {
