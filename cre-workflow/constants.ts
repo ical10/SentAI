@@ -6,3 +6,6 @@ export const ETH_ADDRESS_REGEX = /^0x[a-fA-F0-9]{40}$/u;
 /** Maximum number of Polymarket markets to pass to Grok per cycle.
  *  Limits prompt size to control token usage and API costs. */
 export const MAX_MARKETS = 3;
+
+export const USDC_DECIMAL = 6;
+export const SUGGESTED_PRICE_DECIMAL = 9;
