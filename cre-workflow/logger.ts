@@ -5,13 +5,9 @@ import {
 	getNetwork,
 	hexToBase64,
 	type Runtime,
-} from "@chainlink/cre-sdk/dist";
+} from "@chainlink/cre-sdk";
 import { type Config, type GrokDecision } from "./types";
-import {
-	encodeAbiParameters,
-	parseAbiParameters,
-	parseUnits,
-} from "../my-workflow/cre-workflow/node_modules/viem";
+import { encodeAbiParameters, parseAbiParameters, parseUnits } from "viem";
 import { SUGGESTED_PRICE_DECIMAL, USDC_DECIMAL } from "./constants";
 
 /**
