@@ -4,7 +4,22 @@ pragma solidity ^0.8.28;
 import {ReceiverTemplate} from "./interfaces/ReceiverTemplate.sol";
 
 contract SentAILogger is ReceiverTemplate {
+	struct Decision {
+		uint256 timestamp;
+		uint8 sentimentScore;
+		uint8 confidence;
+		string action;
+		string marketSlug;
+		uint256 sizeUsdc;
+		uint256 suggestedPrice;
+	}
+
+	uint256 public decisionCount;
+	mapping(uint256 => Decision) public decisions;
+	mapping(bytes32 => uint256[]) public decisionsBySlug; // keccak256(slug) -> decision IDs
+
 	event SentAIDecision(
+		uint256 indexed id, // cross-reference with getDecision(id)
 		uint256 indexed timestamp,
 		uint8 sentimentScore,
 		uint8 confidence,
@@ -36,7 +51,8 @@ contract SentAILogger is ReceiverTemplate {
 			uint256 suggestedPrice
 		) = abi.decode(report, (uint8, uint8, string, string, uint256, uint256));
 
-		emit SentAIDecision(
+		uint256 id = decisionCount;
+		decisions[id] = Decision(
 			block.timestamp,
 			sentimentScore,
 			confidence,
@@ -45,5 +61,28 @@ contract SentAILogger is ReceiverTemplate {
 			sizeUsdc,
 			suggestedPrice
 		);
+		decisionsBySlug[keccak256(bytes(marketSlug))].push(id);
+		decisionCount = id + 1;
+
+		emit SentAIDecision(
+			id,
+			block.timestamp,
+			sentimentScore,
+			confidence,
+			action,
+			marketSlug,
+			sizeUsdc,
+			suggestedPrice
+		);
+	}
+
+	function getDecision(uint256 id) external view returns (Decision memory) {
+		require(id < decisionCount, "Decision does not exist");
+		return decisions[id];
+	}
+
+	function getDecisionsBySlug(string calldata slug) external view returns (uint256[] memory) {
+		bytes32 slugHash = keccak256(bytes(slug));
+		return decisionsBySlug[slugHash];
 	}
 }
