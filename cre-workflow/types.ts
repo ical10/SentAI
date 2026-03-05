@@ -145,6 +145,8 @@ export interface PolymarketMarket {
 	question: string; // The market question (UNTRUSTED — prompt injection risk)
 	yesPrice: string; // Current YES token price (e.g. "0.65")
 	noPrice: string; // Current NO token price (e.g. "0.35")
+	endDate: string; // The end date of the market
+	eventStartTime: string; // The start time of the market
 }
 
 /*********************************

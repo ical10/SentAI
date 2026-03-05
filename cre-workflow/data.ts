@@ -27,6 +27,9 @@ interface GammaMarketRaw {
 	outcomePrices: string | string[]; // may arrive as JSON string or actually array
 	active: boolean;
 	closed: boolean;
+	endDate: string;
+	eventStartTime: string;
+	resolutionSource: string;
 }
 
 // Fetch only supported tokens on Polymarket
@@ -106,6 +109,8 @@ const FetchMarkets =
 			return {
 				market_slug: m.slug,
 				question: m.question,
+				endDate: m.endDate,
+				eventStartTime: m.eventStartTime,
 				yesPrice,
 				noPrice,
 			};
@@ -130,11 +135,18 @@ export const fetchActiveMarkets = (runtime: Runtime<Config>): PolymarketMarket[]
 			), consensusIdenticalAggregation<PolymarketMarket[]>())(runtime.config)
 		.result();
 
+	runtime.log(`Found ${result.length} active Polymarket markets`);
+	for (const m of result) {
+		runtime.log(
+			`[Market] ${m.market_slug} | YES: ${m.yesPrice} | NO: ${m.noPrice} | Window ends: ${m.endDate} | Resolution: Chainlink Data Feed`,
+		);
+	}
+
 	return result;
 };
 
 /**
- * Fetch prices for a list of supported tokens.
+ * Fetch prices for a list of supported tokens from Chainlink Data Feeds (AggregatorV3Interface)
  *
  * @param runtime - CRE runtime instance with config and secrets
  * @param tokens - an array of supported tokens
@@ -186,7 +198,7 @@ export const fetchPrices = (runtime: Runtime<Config>, tokens: string[]): Record<
 		});
 
 		prices[token] = answer;
-		runtime.log(`${token} in USD: $${(Number(answer) / 1e8).toFixed(2)}`);
+		runtime.log(`[Chainlink Data Feed] ${token} in USD: $${(Number(answer) / 1e8).toFixed(2)}`);
 	}
 
 	return prices;

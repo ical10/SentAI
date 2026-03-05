@@ -20,10 +20,23 @@ const onCronTrigger = (runtime: Runtime<Config>, payload: CronPayload): string =
 	const tokens = extractTokens(markets);
 	const prices = fetchPrices(runtime, tokens);
 
+	for (const m of markets) {
+		const token = m.market_slug.split("-")[0].toUpperCase();
+		const price = prices[token];
+		const priceStr = price ? `$${(Number(price) / 1e8).toFixed(2)}` : "N/A";
+		runtime.log(
+			`[Price to beat] ${m.market_slug} | Current ${token}/USD: ${priceStr} (Chainlink Data Feed at execution time)`,
+		);
+	}
+
 	const questions = markets.map((m) => m.question);
 	const result = askGrok(runtime, markets, prices, questions);
 	const parsedContent = JSON.parse(result.content);
 	const decision = GrokDecisionSchema.parse(parsedContent);
+
+	runtime.log(
+		`[Decision] ${decision.action} on ${decision.market_slug} | Confidence: ${decision.confidence}% | Size: $${decision.size_usdc} | Reason: ${decision.reason}`,
+	);
 
 	if (decision.action !== "HOLD") {
 		logDecision(runtime, decision);
