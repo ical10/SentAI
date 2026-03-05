@@ -70,16 +70,20 @@ const FetchMarkets =
 	(sendRequester: HTTPSendRequester, _config: Config): PolymarketMarket[] => {
 		// 1. Get current 15-min window timestamp using consensus-safe timestamp
 		// TODO: convert Math.floor(...) into a helper function
-		const timestamp = Math.floor(nowInMs / 1000 / 900) * 900;
+		const timestamp5m = Math.floor(nowInMs / 1000 / 300) * 300;
+		const timestamp15m = Math.floor(nowInMs / 1000 / 900) * 900;
 
 		// 2. Build slugs for each token
-		const slugs = SUPPORTED_TOKENS.map((token) => `${token}-updown-15m-${timestamp}`);
+		const slugs = SUPPORTED_TOKENS.flatMap((token) => [
+			`${token}-updown-5m-${timestamp5m}`,
+			`${token}-updown-15m-${timestamp15m}`,
+		]);
 
 		// 3. Fetch markets by slug (comma-separated)
 		const resp = sendRequester
 			.sendRequest({
 				method: "GET",
-				url: `https://gamma-api.polymarket.com/markets?slug=${slugs.join(",")}&active=true&closed=false`,
+				url: `https://gamma-api.polymarket.com/markets?${slugs.map((s) => `slug=${s}`).join("&")}&active=true&closed=false`,
 			})
 			.result();
 
