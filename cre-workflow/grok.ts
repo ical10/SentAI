@@ -209,6 +209,7 @@ const PostGrokData =
 				store: true,
 				maxAge: "60s",
 			},
+			timeout: "60s",
 		};
 
 		const resp = sendRequester.sendRequest(req).result();
@@ -229,7 +230,7 @@ const PostGrokData =
 
 		return {
 			statusCode: resp.statusCode,
-			grokResponse: textContent.text,
+			content: textContent.text,
 			model: externalResp.model,
 			id: externalResp.id,
 		};
