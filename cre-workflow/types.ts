@@ -2,8 +2,8 @@
 // Includes configuration validation, xAI Grok API types,
 // Polymarket market types, and Chainlink Data Feed types.
 
-import { z } from "zod"
-import { ETH_ADDRESS_REGEX } from "./constants.ts"
+import { z } from "zod";
+import { ETH_ADDRESS_REGEX } from "./constants";
 
 /*********************************
  * Configuration Schemas
@@ -23,7 +23,7 @@ export const configSchema = z.object({
 	gasLimit: z
 		.string()
 		.regex(/^\d+$/, "gasLimit must be a numeric string")
-		.refine(val => Number(val) > 0, { message: "gasLimit must be greater than 0" }),
+		.refine((val) => Number(val) > 0, { message: "gasLimit must be greater than 0" }),
 	dataFeeds: z.record(
 		z.string().min(1),
 		z.string().regex(ETH_ADDRESS_REGEX, "Data feed proxy must be a valid Ethereum address"),
@@ -46,23 +46,25 @@ export type Config = z.infer<typeof configSchema>;
  *
  * See https://docs.x.ai/developers/model-capabilities/text/structured-outputs for details
  */
-export const GrokDecisionSchema = z.object({
-	sentiment_score: z.number().int().min(0).max(100),
-	confidence: z.number().int().min(0).max(100),
-	action: z.enum(["HOLD", "BET_YES", "BET_NO"]),
-	market_slug: z.string(),
-	size_usdc: z.number().min(0).max(50),
-	suggested_price: z.number().min(0.01).max(0.99),
-	reason: z.string().min(1, "reason is required"),
-}).superRefine((data, ctx) => {
-	if (data.action !== "HOLD" && data.market_slug.length === 0) {
-		ctx.addIssue({
-			code: z.ZodIssueCode.custom,
-			message: "market_slug is required when action is BET_YES or BET_NO",
-			path: ["market_slug"],
-		});
-	}
-})
+export const GrokDecisionSchema = z
+	.object({
+		sentiment_score: z.number().int().min(0).max(100),
+		confidence: z.number().int().min(0).max(100),
+		action: z.enum(["HOLD", "BET_YES", "BET_NO"]),
+		market_slug: z.string(),
+		size_usdc: z.number().min(0).max(50),
+		suggested_price: z.number().min(0.01).max(0.99),
+		reason: z.string().min(1, "reason is required"),
+	})
+	.superRefine((data, ctx) => {
+		if (data.action !== "HOLD" && data.market_slug.length === 0) {
+			ctx.addIssue({
+				code: z.ZodIssueCode.custom,
+				message: "market_slug is required when action is BET_YES or BET_NO",
+				path: ["market_slug"],
+			});
+		}
+	});
 
 /** Validated decision type inferred from the Grok schema. */
 export type GrokDecision = z.infer<typeof GrokDecisionSchema>;
@@ -77,10 +79,10 @@ export type GrokDecision = z.infer<typeof GrokDecisionSchema>;
  */
 export type GrokResponse = {
 	statusCode: number; // HTTP status from xAI API
-	grokResponse: string; // The structured JSON string from Grok (matches GrokDecisionSchema)
+	content: string; // The structured JSON string from Grok (matches GrokDecisionSchema)
 	model: string; // The model used, e.g. "grok-4-1-fast-reasoning"
 	id: string; // Unique response ID from xAI
-}
+};
 
 /**
  * A single message in the xAI Responses API input array.

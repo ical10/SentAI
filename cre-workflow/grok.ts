@@ -14,8 +14,8 @@ import {
 	type PolymarketMarket,
 	type XAIResponsesRequest,
 	type XAIResponsesApiResponse,
-} from "./types.ts";
-import { MAX_MARKETS } from "./constants.ts";
+} from "./types";
+import { MAX_MARKETS } from "./constants";
 
 /**
  * System prompt for Grok.

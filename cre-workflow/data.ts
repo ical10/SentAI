@@ -11,7 +11,7 @@ import {
 	type Runtime,
 } from "@chainlink/cre-sdk";
 
-import { type Config, type PolymarketMarket } from "./types.ts";
+import { type Config, type PolymarketMarket } from "./types";
 import { AggregatorV3Interface } from "../contracts/abi";
 import {
 	type Address,
