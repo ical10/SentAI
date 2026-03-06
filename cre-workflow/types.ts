@@ -46,28 +46,24 @@ export type Config = z.infer<typeof configSchema>;
  *
  * See https://docs.x.ai/developers/model-capabilities/text/structured-outputs for details
  */
-export const GrokDecisionSchema = z
-	.object({
-		sentiment_score: z.number().int().min(0).max(100),
-		confidence: z.number().int().min(0).max(100),
-		action: z.enum(["HOLD", "BET_YES", "BET_NO"]),
-		market_slug: z.string(),
-		size_usdc: z.number().min(0).max(50),
-		suggested_price: z.number().min(0.01).max(0.99),
-		reason: z.string().min(1, "reason is required"),
-	})
-	.superRefine((data, ctx) => {
-		if (data.action !== "HOLD" && data.market_slug.length === 0) {
-			ctx.addIssue({
-				code: z.ZodIssueCode.custom,
-				message: "market_slug is required when action is BET_YES or BET_NO",
-				path: ["market_slug"],
-			});
-		}
-	});
+export const GrokDecisionItemSchema = z.object({
+	sentiment_score: z.number().int().min(0).max(100),
+	confidence: z.number().int().min(0).max(100),
+	action: z.enum(["HOLD", "BET_YES", "BET_NO"]),
+	market_slug: z.string().min(1, "market_slug is required"),
+	size_usdc: z.number().min(0).max(50),
+	suggested_price: z.number().min(0.01).max(0.99),
+	reason: z.string().min(1, "reason is required"),
+});
 
 /** Validated decision type inferred from the Grok schema. */
-export type GrokDecision = z.infer<typeof GrokDecisionSchema>;
+export type GrokDecision = z.infer<typeof GrokDecisionItemSchema>;
+
+/** Wrap items with an array */
+export const GrokDecisionsSchema = z.array(GrokDecisionItemSchema);
+
+/** Validated decisions array inferred type */
+export type GrokDecisions = z.infer<typeof GrokDecisionsSchema>;
 
 /*********************************
  * xAI Grok API Types

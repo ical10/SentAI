@@ -1,5 +1,5 @@
 import { Runner, CronCapability, handler, Runtime, CronPayload } from "@chainlink/cre-sdk";
-import { configSchema, Config, GrokDecisionSchema } from "./types";
+import { configSchema, Config, GrokDecisionsSchema } from "./types";
 import { fetchActiveMarkets, extractTokens, fetchPrices } from "./data";
 import { askGrok } from "./grok";
 import { logDecision } from "./logger";
@@ -32,17 +32,19 @@ const onCronTrigger = (runtime: Runtime<Config>, payload: CronPayload): string =
 	const questions = markets.map((m) => m.question);
 	const result = askGrok(runtime, markets, prices, questions);
 	const parsedContent = JSON.parse(result.content);
-	const decision = GrokDecisionSchema.parse(parsedContent);
+	const decisions = GrokDecisionsSchema.parse(parsedContent);
 
-	runtime.log(
-		`[Decision] ${decision.action} on ${decision.market_slug} | Confidence: ${decision.confidence}% | Size: $${decision.size_usdc} | Reason: ${decision.reason}`,
-	);
+	for (const decision of decisions) {
+		runtime.log(
+			`[Decision] ${decision.action} on ${decision.market_slug} | Confidence: ${decision.confidence}% | Size: $${decision.size_usdc} | Reason: ${decision.reason}`,
+		);
 
-	if (decision.action !== "HOLD") {
-		logDecision(runtime, decision);
+		if (decision.action !== "HOLD") {
+			logDecision(runtime, decision);
+		}
 	}
 
-	return JSON.stringify(decision);
+	return JSON.stringify(decisions);
 };
 
 const initWorkflow = (config: Config) => {
