@@ -11,7 +11,7 @@ import {
 	type Runtime,
 } from "@chainlink/cre-sdk";
 
-import { type Config, type PolymarketMarket } from "./types";
+import { ChainlinkPriceData, type Config, type PolymarketMarket } from "./types";
 import { AggregatorV3Interface } from "../contracts/abi";
 import {
 	type Address,
@@ -34,6 +34,132 @@ interface GammaMarketRaw {
 
 // Fetch only supported tokens on Polymarket
 const SUPPORTED_TOKENS = ["btc", "eth"] as const;
+
+interface CallGetRoundDataReturnProps {
+	roundId: bigint;
+	answer: bigint;
+	updatedAt: bigint;
+}
+
+/**
+ * A wrapper function that encodes/decodes EVM call to get round data
+ *
+ * @param evmClient - EVM client instance to call contract
+ * @param runtime - CRE runtime instance with config and secrets
+ * @param proxyAddress - address of proxy contract for AggregatorV3 contract
+ * @param roundId - (optional) roundId for the queried round data
+ * @returns roundId, answer, and updatedAt from the queried round data
+ */
+export const callGetRoundData = (
+	evmClient: EVMClient,
+	runtime: Runtime<Config>,
+	proxyAddress: Address,
+	roundId?: bigint,
+): CallGetRoundDataReturnProps => {
+	const callData =
+		roundId !== undefined
+			? encodeFunctionData({
+					abi: AggregatorV3Interface,
+					functionName: "getRoundData",
+					args: [roundId],
+				})
+			: encodeFunctionData({
+					abi: AggregatorV3Interface,
+					functionName: "latestRoundData",
+				});
+
+	const contractCall = evmClient
+		.callContract(runtime, {
+			call: encodeCallMsg({
+				from: zeroAddress,
+				to: proxyAddress as Address,
+				data: callData,
+			}),
+			blockNumber: LAST_FINALIZED_BLOCK_NUMBER,
+		})
+		.result();
+
+	const [_roundId, answer, _startedAt, updatedAt] =
+		roundId !== undefined
+			? decodeFunctionResult({
+					abi: AggregatorV3Interface,
+					functionName: "getRoundData",
+					data: bytesToHex(contractCall.data),
+				})
+			: decodeFunctionResult({
+					abi: AggregatorV3Interface,
+					functionName: "latestRoundData",
+					data: bytesToHex(contractCall.data),
+				});
+
+	return {
+		roundId: _roundId,
+		answer,
+		updatedAt,
+	};
+};
+
+/**
+ * Binary search helper to get the round at a given timestamp.
+ *
+ * @param evmClient - EVM client instance to call contract
+ * @param runtime - CRE runtime instance with config and secrets
+ * @param proxyAddress - address of proxy contract for AggregatorV3 contract
+ * @param targetTimestamp - desired timestamp to match the most probable round
+ * @returns the most probable roundId in bigint
+ */
+const findRoundAtTimestamp = (
+	evmClient: EVMClient,
+	runtime: Runtime<Config>,
+	proxyAddress: Address,
+	targetTimestamp: number,
+): bigint => {
+	// 1. Get the latest round as upper bound
+	// Chainlink roundIds encode phaseId in upper bits: roundId = (phaseId << 64) | aggregatorRoundId
+	// Search only within the current phase to avoid reverts on invalid roundIds
+	const latest = callGetRoundData(evmClient, runtime, proxyAddress);
+	const phaseId = latest.roundId >> 64n;
+	const phaseBase = phaseId << 64n;
+	const latestAggRoundId = latest.roundId - phaseBase;
+
+	// If target is in the future or very recent, just return latest
+	const latestTs = Number(latest.updatedAt);
+	if (targetTimestamp >= latestTs) {
+		return latest.answer;
+	}
+
+	// Estimate lo by assuming ~60s average between rounds (conservative)
+	// This narrows the search range to stay within CRE's 15 chain read limit
+	const secondsBack = BigInt(latestTs - targetTimestamp);
+	const estimatedRoundsBack = secondsBack / 60n + 10n; // +10 buffer
+	const estimatedLo = latestAggRoundId > estimatedRoundsBack
+		? latestAggRoundId - estimatedRoundsBack
+		: 1n;
+
+	let lo = phaseBase | estimatedLo;
+	let hi = latest.roundId;
+	let bestAnswer = latest.answer;
+
+	// Cap iterations to avoid exceeding CRE chain read limits
+	const MAX_ITERATIONS = 5;
+	let iterations = 0;
+
+	while (lo <= hi && iterations < MAX_ITERATIONS) {
+		iterations++;
+		const mid = lo + (hi - lo) / 2n;
+		const round = callGetRoundData(evmClient, runtime, proxyAddress, mid);
+		const roundUpdated = Number(round.updatedAt);
+
+		if (roundUpdated <= targetTimestamp) {
+			bestAnswer = round.answer;
+			lo = mid + 1n;
+		} else {
+			hi = mid - 1n;
+		}
+	}
+
+	return bestAnswer;
+};
 
 /**
  * Handles parsing of outcomePrice.
@@ -152,7 +278,11 @@ export const fetchActiveMarkets = (runtime: Runtime<Config>): PolymarketMarket[]
  * @param tokens - an array of supported tokens
  * @returns price for each token in USD denomination
  */
-export const fetchPrices = (runtime: Runtime<Config>, tokens: string[]): Record<string, bigint> => {
+export const fetchPrices = (
+	runtime: Runtime<Config>,
+	tokens: string[],
+	targetTimestamps: Record<string, number>,
+): Record<string, bigint> => {
 	const config = runtime.config;
 	const network = getNetwork({
 		chainFamily: "evm",
@@ -175,28 +305,12 @@ export const fetchPrices = (runtime: Runtime<Config>, tokens: string[]): Record<
 			continue;
 		}
 
-		const callData = encodeFunctionData({
-			abi: AggregatorV3Interface,
-			functionName: "latestRoundData",
-		});
-
-		const contractCall = evmClient
-			.callContract(runtime, {
-				call: encodeCallMsg({
-					from: zeroAddress,
-					to: proxyAddress as Address,
-					data: callData,
-				}),
-				blockNumber: LAST_FINALIZED_BLOCK_NUMBER,
-			})
-			.result();
-
-		const [_roundId, answer] = decodeFunctionResult({
-			abi: AggregatorV3Interface,
-			functionName: "latestRoundData",
-			data: bytesToHex(contractCall.data),
-		});
-
+		const answer = findRoundAtTimestamp(
+			evmClient,
+			runtime,
+			proxyAddress as Address,
+			targetTimestamps[token],
+		);
 		prices[token] = answer;
 		runtime.log(`[Chainlink Data Feed] ${token} in USD: $${(Number(answer) / 1e8).toFixed(2)}`);
 	}

@@ -18,14 +18,21 @@ const onCronTrigger = (runtime: Runtime<Config>, payload: CronPayload): string =
 	}
 
 	const tokens = extractTokens(markets);
-	const prices = fetchPrices(runtime, tokens);
+	const targetTimestamps: Record<string, number> = {};
+	for (const m of markets) {
+		const token = m.market_slug.split("-")[0].toUpperCase();
+		const raw = m.market_slug.split("-").pop();
+		const ts = raw ? parseInt(raw) : Math.floor(runtime.now().getTime() / 1000);
+		targetTimestamps[token] = ts;
+	}
+	const prices = fetchPrices(runtime, tokens, targetTimestamps);
 
 	for (const m of markets) {
 		const token = m.market_slug.split("-")[0].toUpperCase();
 		const price = prices[token];
 		const priceStr = price ? `$${(Number(price) / 1e8).toFixed(2)}` : "N/A";
 		runtime.log(
-			`[Price to beat] ${m.market_slug} | Current ${token}/USD: ${priceStr} (Chainlink Data Feed at execution time)`,
+			`[Price to beat] ${m.market_slug} | Current ${token}/USD: ${priceStr} (Chainlink Data Feed at market creation)`,
 		);
 	}
 
