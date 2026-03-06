@@ -132,9 +132,8 @@ const findRoundAtTimestamp = (
 	// This narrows the search range to stay within CRE's 15 chain read limit
 	const secondsBack = BigInt(latestTs - targetTimestamp);
 	const estimatedRoundsBack = secondsBack / 60n + 10n; // +10 buffer
-	const estimatedLo = latestAggRoundId > estimatedRoundsBack
-		? latestAggRoundId - estimatedRoundsBack
-		: 1n;
+	const estimatedLo =
+		latestAggRoundId > estimatedRoundsBack ? latestAggRoundId - estimatedRoundsBack : 1n;
 
 	let lo = phaseBase | estimatedLo;
 	let hi = latest.roundId;
@@ -264,7 +263,7 @@ export const fetchActiveMarkets = (runtime: Runtime<Config>): PolymarketMarket[]
 	runtime.log(`Found ${result.length} active Polymarket markets`);
 	for (const m of result) {
 		runtime.log(
-			`[Market] ${m.market_slug} | YES: ${m.yesPrice} | NO: ${m.noPrice} | Window ends: ${m.endDate} | Resolution: Chainlink Data Feed`,
+			`[Market] ${m.market_slug} | YES: ${m.yesPrice} | NO: ${m.noPrice} | Window ends: ${new Date(m.endDate).toUTCString()} | Resolution: Chainlink Data Feed`,
 		);
 	}
 

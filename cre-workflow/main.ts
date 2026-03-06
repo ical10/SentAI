@@ -18,12 +18,16 @@ const onCronTrigger = (runtime: Runtime<Config>, payload: CronPayload): string =
 	}
 
 	const tokens = extractTokens(markets);
+	// Build target timestamps per token for historical price lookup.
+	// Uses the earliest timestamp per token (i.e., the 15m market start) when multiple
+	// timeframes exist. This means the 5m market will use the 15m start price — off by
+	// a few minutes, but avoids extra chain reads that would exceed CRE's 15 call limit.
 	const targetTimestamps: Record<string, number> = {};
 	for (const m of markets) {
 		const token = m.market_slug.split("-")[0].toUpperCase();
 		const raw = m.market_slug.split("-").pop();
 		const ts = raw ? parseInt(raw) : Math.floor(runtime.now().getTime() / 1000);
-		targetTimestamps[token] = ts;
+		targetTimestamps[token] = Math.min(targetTimestamps[token] ?? ts, ts);
 	}
 	const prices = fetchPrices(runtime, tokens, targetTimestamps);
 
@@ -31,8 +35,10 @@ const onCronTrigger = (runtime: Runtime<Config>, payload: CronPayload): string =
 		const token = m.market_slug.split("-")[0].toUpperCase();
 		const price = prices[token];
 		const priceStr = price ? `$${(Number(price) / 1e8).toFixed(2)}` : "N/A";
+		const ts = targetTimestamps[token];
+		const tsStr = new Date(ts * 1000).toUTCString();
 		runtime.log(
-			`[Price to beat] ${m.market_slug} | Current ${token}/USD: ${priceStr} (Chainlink Data Feed at market creation)`,
+			`[Price to beat] ${m.market_slug} | ${token}/USD: ${priceStr} at ${tsStr} (Chainlink Data Feed at market creation)`,
 		);
 	}
 
