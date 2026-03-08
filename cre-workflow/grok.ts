@@ -15,7 +15,7 @@ import {
 	type XAIResponsesRequest,
 	type XAIResponsesApiResponse,
 } from "./types";
-import { MAX_MARKETS } from "./constants";
+import { CHAINLINK_PRICE_DECIMALS, MAX_MARKETS } from "./constants";
 
 /**
  * System prompt for Grok.
@@ -107,7 +107,7 @@ const buildUserPrompt = (
 
 	const priceLines = Object.keys(prices)
 		.sort()
-		.map((token) => `${token}/USD: $${(Number(prices[token]) / 1e8).toFixed(2)}`)
+		.map((token) => `${token}/USD: $${(Number(prices[token]) / CHAINLINK_PRICE_DECIMALS).toFixed(2)}`)
 		.join("\n");
 
 	const marketLines = cappedMarkets
@@ -217,7 +217,7 @@ const PostGrokData =
 				store: true,
 				maxAge: "60s",
 			},
-			timeout: "60s",
+			timeout: "120s",
 		};
 
 		const resp = sendRequester.sendRequest(req).result();

@@ -12,6 +12,7 @@ import {
 } from "@chainlink/cre-sdk";
 
 import { type Config, type PolymarketMarket } from "./types";
+import { CHAINLINK_PRICE_DECIMALS, WINDOW_5M, WINDOW_15M } from "./constants";
 import { AggregatorV3Interface } from "../contracts/abi";
 import {
 	type Address,
@@ -31,9 +32,6 @@ interface GammaMarketRaw {
 	eventStartTime: string;
 	resolutionSource: string;
 }
-
-// Fetch only supported tokens on Polymarket
-const SUPPORTED_TOKENS = ["btc", "eth"] as const;
 
 interface CallGetRoundDataReturnProps {
 	roundId: bigint;
@@ -195,14 +193,15 @@ const parseOutcomePrices = (raw: string | string[]): [string, string] => {
  */
 const FetchMarkets =
 	(nowInMs: number) =>
-	(sendRequester: HTTPSendRequester, _config: Config): PolymarketMarket[] => {
+	(sendRequester: HTTPSendRequester, config: Config): PolymarketMarket[] => {
 		// 1. Get current 5-min and 15-min window timestamp using consensus-safe timestamp
 		// TODO: convert Math.floor(...) into a helper function
-		const timestamp5m = Math.floor(nowInMs / 1000 / 300) * 300;
-		const timestamp15m = Math.floor(nowInMs / 1000 / 900) * 900;
+		const timestamp5m = Math.floor(nowInMs / 1000 / WINDOW_5M) * WINDOW_5M;
+		const timestamp15m = Math.floor(nowInMs / 1000 / WINDOW_15M) * WINDOW_15M;
 
-		// 2. Build slugs for each token
-		const slugs = SUPPORTED_TOKENS.flatMap((token) => [
+		// 2. Build slugs for each token, derived from config.dataFeeds keys
+		const tokens = Object.keys(config.dataFeeds).map((t) => t.toLowerCase());
+		const slugs = tokens.flatMap((token) => [
 			`${token}-updown-5m-${timestamp5m}`,
 			`${token}-updown-15m-${timestamp15m}`,
 		]);
@@ -317,7 +316,9 @@ export const fetchPrices = (
 
 		const answer = findRoundAtTimestamp(evmClient, runtime, proxyAddress as Address, targetTs);
 		prices[token] = answer;
-		runtime.log(`[Chainlink Data Feed] ${token} in USD: $${(Number(answer) / 1e8).toFixed(2)}`);
+		runtime.log(
+			`[Chainlink Data Feed] ${token} in USD: $${(Number(answer) / CHAINLINK_PRICE_DECIMALS).toFixed(2)}`,
+		);
 	}
 
 	return prices;

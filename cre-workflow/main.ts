@@ -3,6 +3,7 @@ import { configSchema, Config, GrokDecisionsSchema } from "./types";
 import { fetchActiveMarkets, extractTokens, fetchPrices } from "./data";
 import { askGrok } from "./grok";
 import { logDecision } from "./logger";
+import { CHAINLINK_PRICE_DECIMALS } from "./constants";
 
 const onCronTrigger = (runtime: Runtime<Config>, payload: CronPayload): string => {
 	if (!payload.scheduledExecutionTime) {
@@ -35,7 +36,7 @@ const onCronTrigger = (runtime: Runtime<Config>, payload: CronPayload): string =
 	for (const m of markets) {
 		const token = m.market_slug.split("-")[0].toUpperCase();
 		const price = prices[token];
-		const priceStr = price ? `$${(Number(price) / 1e8).toFixed(2)}` : "N/A";
+		const priceStr = price ? `$${(Number(price) / CHAINLINK_PRICE_DECIMALS).toFixed(2)}` : "N/A";
 		const ts = targetTimestamps[token];
 		const tsStr = new Date(ts * 1000).toUTCString();
 		runtime.log(
