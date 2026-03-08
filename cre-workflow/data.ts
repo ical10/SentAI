@@ -11,7 +11,7 @@ import {
 	type Runtime,
 } from "@chainlink/cre-sdk";
 
-import { ChainlinkPriceData, type Config, type PolymarketMarket } from "./types";
+import { type Config, type PolymarketMarket } from "./types";
 import { AggregatorV3Interface } from "../contracts/abi";
 import {
 	type Address,
@@ -223,7 +223,12 @@ const FetchMarkets =
 			);
 		}
 
-		const rawMarkets: GammaMarketRaw[] = JSON.parse(bodyText);
+		let rawMarkets: GammaMarketRaw[];
+		try {
+			rawMarkets = JSON.parse(bodyText);
+		} catch (err) {
+			throw new Error(`Failed to parse Polymarket response as JSON. Error: ${bodyText}`);
+		}
 
 		// 4. Parse rawMarkets into validated market data
 		//   Validated data:
