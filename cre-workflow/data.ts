@@ -106,7 +106,7 @@ export const callGetRoundData = (
  * @param runtime - CRE runtime instance with config and secrets
  * @param proxyAddress - address of proxy contract for AggregatorV3 contract
  * @param targetTimestamp - desired timestamp to match the most probable round
- * @returns the most probable roundId in bigint
+ * @returns bestAnswer as bigint
  */
 const findRoundAtTimestamp = (
 	evmClient: EVMClient,
@@ -196,7 +196,7 @@ const parseOutcomePrices = (raw: string | string[]): [string, string] => {
 const FetchMarkets =
 	(nowInMs: number) =>
 	(sendRequester: HTTPSendRequester, _config: Config): PolymarketMarket[] => {
-		// 1. Get current 15-min window timestamp using consensus-safe timestamp
+		// 1. Get current 5-min and 15-min window timestamp using consensus-safe timestamp
 		// TODO: convert Math.floor(...) into a helper function
 		const timestamp5m = Math.floor(nowInMs / 1000 / 300) * 300;
 		const timestamp15m = Math.floor(nowInMs / 1000 / 900) * 900;
@@ -304,12 +304,13 @@ export const fetchPrices = (
 			continue;
 		}
 
-		const answer = findRoundAtTimestamp(
-			evmClient,
-			runtime,
-			proxyAddress as Address,
-			targetTimestamps[token],
-		);
+		const targetTs = targetTimestamps[token];
+		if (targetTs === undefined) {
+			runtime.log(`No target timestamp for ${token} - skipping`);
+			continue;
+		}
+
+		const answer = findRoundAtTimestamp(evmClient, runtime, proxyAddress as Address, targetTs);
 		prices[token] = answer;
 		runtime.log(`[Chainlink Data Feed] ${token} in USD: $${(Number(answer) / 1e8).toFixed(2)}`);
 	}
