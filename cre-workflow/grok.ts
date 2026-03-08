@@ -57,7 +57,7 @@ STRICT RULES:
 - market_slug MUST be a non-empty string matching an active market slug.
 - If you cannot determine an actionable signal, use action "HOLD" with confidence 0.
 - If you are about to produce anything that is not valid JSON array, instead output EXACTLY:
-  [{"sentiment_score":50,"confidence":0,"market_slug": "invalid","action":"HOLD","size_usdc":0,"suggested_price":0.50,"reason":"Unable to determine signal"}]
+  [{"sentiment_score":50,"confidence":0,"action":"HOLD","market_slug": "invalid","size_usdc":0,"suggested_price":0.50,"reason":"Unable to determine signal"}]
 
 DECISION RULES:
 - "BET_YES" = sentiment + price momentum suggest the market outcome is likely YES.
