@@ -26,7 +26,8 @@ const onCronTrigger = (runtime: Runtime<Config>, payload: CronPayload): string =
 	for (const m of markets) {
 		const token = m.market_slug.split("-")[0].toUpperCase();
 		const raw = m.market_slug.split("-").pop();
-		const ts = raw ? parseInt(raw) : Math.floor(runtime.now().getTime() / 1000);
+		const parsed = raw ? parseInt(raw) : NaN;
+		const ts = Number.isNaN(parsed) ? Math.floor(runtime.now().getTime() / 1000) : parsed;
 		targetTimestamps[token] = Math.min(targetTimestamps[token] ?? ts, ts);
 	}
 	const prices = fetchPrices(runtime, tokens, targetTimestamps);
