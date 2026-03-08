@@ -215,6 +215,12 @@ const PostGrokData =
 		};
 
 		const resp = sendRequester.sendRequest(req).result();
+
+		if (!resp.body || resp.body.length === 0) {
+			throw new Error(
+				`Grok HTTP request returned empty body with status: ${resp.statusCode}`,
+			);
+		}
 		const bodyText = new TextDecoder().decode(resp.body);
 
 		if (!ok(resp))
