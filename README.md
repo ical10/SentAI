@@ -2,7 +2,7 @@
 
 ## Overview
 
-SentAI is built during **Convergence | A Chainlink Hackathon 2026** on top of:
+SentAI is built during **Convergence | A Chainlink Hackathon 2026** using primarily:
 
 - Chainlink Runtime Environment,
 - xAI API,
@@ -10,15 +10,123 @@ SentAI is built during **Convergence | A Chainlink Hackathon 2026** on top of:
 
 for **CRE & AI** track.
 
-It is an on-chain end-to-end automated process called "workflow" to generate Polymarket market decisions based on X posts analysis and then publish them on-chain. Successfully generated market decisions can be verified on a smart contract deployed on Sepolia.
+It is an on-chain end-to-end automated process called "workflow" to generate Polymarket market decisions based on X posts analysis and to then publish them on-chain. Successfully generated market decisions can be verified on a smart contract deployed on Sepolia.
 
-## Problems and How SentAI Solves Them
+## Tech Stack
 
-Prediction markets has been gaining a huge traction lately, and one of the biggest platform out there is Polymarket, with a trading volume of up to $24.6B for the past three years only (see [TokenTerminal data](https://tokenterminal.com/explorer/projects/polymarket/metrics/trading-volume)). Polymarket is also very popular among many crypto traders, where there are 4151 crypto-related bets as the time of writing. Based on some research (e.g. [this one](https://link.springer.com/article/10.1007/s11147-025-09223-6#:~:text=Furthermore%2C%20while%20Anamika%20and%20Subramaniam,items%2C%20which%20are%20aggregated%20daily.)), news and social media posts might reflect market sentiments and are significantly associated with price movements.
+| Component             | Role                                              |
+| --------------------- | ------------------------------------------------- |
+| CRE                   | Workflow orchestration, consensus, signed reports |
+| Chainlink Price Feeds | On-chain BTC/ETH prices (AggregatorV3)            |
+| xAI Grok              | Sentiment analysis via X Search                   |
+| Polymarket Gamma API  | Active market discovery                           |
+| SentAILogger.sol      | On-chain decision logging                         |
+| Zod                   | Response validation                               |
+| viem                  | ABI encoding/decoding                             |
 
-Where is the biggest platform where crypto is very popular? The answer is X. There you can find hundreds of recently popular posts from crypto influencers and news media 24/7. However, it is very time-consuming to read each of these X posts, analyse them, and draw a conclusion for a very simple bet question ("will BTC be higher than $79,000 in 5m?"). Comes AI into the picture to solve this issue, and X actually provides their own AI model that has real-time access to the data on the X platform, called xAI or Grok. With xAI, you can ask it a prediction market question and it will seamlessly provides you with synthesis from the most recent, trending and related X posts.
+## Architecture Diagram
 
-Then how do we verify if the AI is not lying to us? Or if the market bets we got are actually manipulated? After all, all of these services are hosted on centralized servers. For this, we need to provide a tamper-proof, verifiable, recurrent solution, and the best technical solution for that is by leveraging workflow built on top of Chainlink Runtime Environment (CRE). With CRE, we can make sure that all of the related services are deterministic and verifiable, and the workflow results can be submitted directly on-chain. It simply eliminates the issue about trusts as we are able to provide an end-to-end verifiable solution for those problems. SentAI helps you to provide that effortlessly, and it is easily modifiable; you can plug other AI or change the workflow config to suit your needs.
+```mermaid
+flowchart LR
+    A[CRE Cron Trigger] --> B[Polymarket Gamma API]
+    B --> C[Chainlink Price Feeds on Sepolia]
+    C --> D[xAI Grok + X Search]
+    D --> E[Zod Validation]
+    E --> F[SentAILogger.sol on Sepolia]
+```
+
+## Problems and Why SentAI Matters
+
+- **Too much noise on X** - Hundreds of crypto posts daily, impossible to manually synthesize into actionable signals. SentAI uses xAI Grok with X Search to do this automatically for you.
+- **No verifiability** - AI responses and market data come from centralized APIs that can be manipulated. CRE ensures consensus across DON nodes, basically eliminating trusts on the data provided.
+- **No on-chain proof** - Trading decisions typically live off-chain with no audit trail. SentAI logs successfully generated decision on-chain via a signed report, verifiable by anyone.
+
+## How SentAI Works
+
+The workflow is currently limited to generating bets on BTC/ETH market price up/down in 5-minutes and 15-minutes windows.
+
+Every 5 minutes, the CRE workflow executes this cycle:
+
+1. **Fetch markets** - Query Polymarket Gamma API for active crypto prediction markets (e.g., "Will BTC go up in 5m?"). Fetched data is consensus-safe across all DON nodes.
+2. **Get baseline price** - Binary search Chainlink Price Feed rounds to find the price at market creation time (or as nearest in time as possible), not the current price. This is the price the market is betting against or "price to beat".
+3. **Analyze sentiment** - Send market data + Chainlink prices to xAI Grok, which uses X Search under the hood to find recent posts about each token and returns a multiple structured trading decisions (for both BTC and ETH) in an array format to save resources.
+4. **Validate** - Parse and validate Grok's JSON response against a strict Zod schema. Invalid responses fall back to HOLD decision (i.e. no bet should take place).
+5. **Log on-chain** - Non-HOLD decisions (`BET_YES` or `BET_NO`) are ABI-encoded, signed, and submitted to `SentAILogger` contract on Sepolia as verifiable, tamper-proof records.
+
+## Why CRE?
+
+- **Consensus** - All DON nodes must agree on the same Polymarket data, Chainlink price, and Grok response. No single node can manipulate the outcome, guaranteeing consensus-safe data.
+- **Deterministic execution** - Same inputs always produce same outputs. The workflow runs in a WASM sandbox, not on a single server. This is important as we want to provide predictable results with our workflow.
+- **Native Chainlink access** - Since we are dealing with crypto price bets, reading prices on-chain can be tricky if we depend on RPC access. Chainlink helps to circumvent this issue by providing on-chain price reads via `EVMClient`.
+- **Signed reports** - Bet decisions are cryptographically signed by the DON before being submitted on-chain. The contract verifies the signature, so only CRE-originated reports are accepted.
+
+## Deployed Contract
+
+SentAILogger on Sepolia: [0x22c517cff19af08bb295f195d6556acb5bc1d47b](https://sepolia.etherscan.io/address/0x22c517cff19af08bb295f195d6556acb5bc1d47b)
+
+## Quick Start
+
+### Prerequisites
+
+- [CRE CLI](https://docs.chain.link/cre)
+- [Foundry](https://book.getfoundry.sh/)
+
+### Prepare .env
+
+```bash
+cp .env.example .env
+```
+
+Then fill out with necessary values.
+
+### Simulate the workflow
+
+```bash
+cre workflow simulate ./cre-workflow --target staging-settings
+```
+
+After running the command above, you will get something like the following:
+
+```bash
+✓ Workflow compiled
+2026-03-08T14:54:43Z [SIMULATION] Simulator Initialized
+
+2026-03-08T14:54:43Z [SIMULATION] Running trigger trigger=cron-trigger@1.0.0
+2026-03-08T14:54:43Z [USER LOG] Running CronTrigger
+2026-03-08T14:54:43Z [USER LOG] Found 4 active Polymarket markets
+2026-03-08T14:54:43Z [USER LOG] [Market] eth-updown-15m-1772977500 | YES: 0.855 | NO: 0.145 | Window ends: Sun, 08 Mar 2026 14:00:00 GMT | Resolution: Chainlink Data Feed
+2026-03-08T14:54:43Z [USER LOG] [Market] btc-updown-15m-1772977500 | YES: 0.685 | NO: 0.315 | Window ends: Sun, 08 Mar 2026 14:00:00 GMT | Resolution: Chainlink Data Feed
+2026-03-08T14:54:43Z [USER LOG] [Market] eth-updown-5m-1772977800 | YES: 0.49 | NO: 0.51 | Window ends: Sun, 08 Mar 2026 13:55:00 GMT | Resolution: Chainlink Data Feed
+2026-03-08T14:54:43Z [USER LOG] [Market] btc-updown-5m-1772977800 | YES: 0.505 | NO: 0.495 | Window ends: Sun, 08 Mar 2026 13:55:00 GMT | Resolution: Chainlink Data Feed
+2026-03-08T14:54:43Z [USER LOG] [Chainlink Data Feed] BTC in USD: $67341.17
+2026-03-08T14:54:43Z [USER LOG] [Chainlink Data Feed] ETH in USD: $1928.30
+2026-03-08T14:54:43Z [USER LOG] [Price to beat] eth-updown-15m-1772977500 | ETH/USD: $1928.30 at Sun, 08 Mar 2026 13:45:00 GMT (Chainlink Data Feed at market creation)
+2026-03-08T14:54:43Z [USER LOG] [Price to beat] btc-updown-15m-1772977500 | BTC/USD: $67341.17 at Sun, 08 Mar 2026 13:45:00 GMT (Chainlink Data Feed at market creation)
+2026-03-08T14:54:43Z [USER LOG] [Price to beat] eth-updown-5m-1772977800 | ETH/USD: $1928.30 at Sun, 08 Mar 2026 13:45:00 GMT (Chainlink Data Feed at market creation)
+2026-03-08T14:54:43Z [USER LOG] [Price to beat] btc-updown-5m-1772977800 | BTC/USD: $67341.17 at Sun, 08 Mar 2026 13:45:00 GMT (Chainlink Data Feed at market creation)
+2026-03-08T14:56:00Z [USER LOG] [Decision] BET_YES on eth-updown-15m-1772977500 | Confidence: 75% | Size: $35 | Reason: Extreme fear sentiment on X indicated by numerous bearish short-term analyses suggests contrarian rebound potential.
+2026-03-08T14:56:00Z [USER LOG] Transaction successful: 0x0000000000000000000000000000000000000000000000000000000000000000
+2026-03-08T14:56:00Z [USER LOG] [Decision] BET_YES on btc-updown-15m-1772977500 | Confidence: 75% | Size: $35 | Reason: Extreme fear sentiment on X indicated by numerous bearish short-term analyses suggests contrarian rebound potential.
+2026-03-08T14:56:01Z [USER LOG] Transaction successful: 0x0000000000000000000000000000000000000000000000000000000000000000
+2026-03-08T14:56:01Z [USER LOG] [Decision] BET_YES on eth-updown-5m-1772977800 | Confidence: 70% | Size: $30 | Reason: Bearish X sentiment reflects extreme fear, supporting contrarian bet on short-term uptick.
+2026-03-08T14:56:01Z [USER LOG] Transaction successful: 0x0000000000000000000000000000000000000000000000000000000000000000
+
+✓ Workflow Simulation Result:
+"[{\"sentiment_score\":20,\"confidence\":75,\"action\":\"BET_YES\",\"market_slug\":\"eth-updown-15m-1772977500\",\"size_usdc\":35,\"suggested_price\":0.65,\"reason\":\"Extreme fear sentiment on X indicated by numerous bearish short-term analyses suggests contrarian rebound potential.\"},{\"sentiment_score\":20,\"confidence\":75,\"action\":\"BET_YES\",\"market_slug\":\"btc-updown-15m-1772977500\",\"size_usdc\":35,\"suggested_price\":0.65,\"reason\":\"Extreme fear sentiment on X indicated by numerous bearish short-term analyses suggests contrarian rebound potential.\"},{\"sentiment_score\":20,\"confidence\":70,\"action\":\"BET_YES\",\"market_slug\":\"eth-updown-5m-1772977800\",\"size_usdc\":30,\"suggested_price\":0.6,\"reason\":\"Bearish X sentiment reflects extreme fear, supporting contrarian bet on short-term uptick.\"}]"
+
+2026-03-08T14:56:01Z [SIMULATION] Execution finished signal received
+2026-03-08T14:56:01Z [SIMULATION] Skipping WorkflowEngineV2
+```
+
+### Deploy the contract
+
+You can also deploy the contract to log every produced result on-chain:
+
+```bash
+cd contracts && ./script/deploy.sh
+```
+
+Save the address of deployed smart contract on `config.staging.json` under `loggerAddress` field, then add `--broadcast` when simulating the workflow to write the reports to deployed contract.
 
 ## Hacky Parts / Interesting Workarounds
 
@@ -48,7 +156,7 @@ This section lists some of interesting hacks and workarounds needed in order to 
 
 ### logTrigger-Based Expansions
 
-1. **Event-Driven Price Feed Trigger** — Use `logTrigger` to watch `AnswerUpdated` events on Chainlink price feed proxies (Sepolia). Instead of fixed 15-min cron intervals, the workflow reacts to actual price movements. This makes SentAI event-driven rather than time-driven.
+1. **Event-Driven Price Feed Trigger** — Use `logTrigger` to watch `AnswerUpdated` events on Chainlink price feed proxies (Sepolia). Instead of fixed 5-min cron intervals, the workflow reacts to actual price movements. This makes SentAI event-driven rather than time-driven.
 
 2. **Whale Watcher (Polymarket CTF)** — Polymarket's CLOB trades are off-chain, but the CTF (Conditional Token Framework) on Polygon emits `TransferSingle`/`TransferBatch` (ERC-1155) events when outcome tokens move. A second workflow could watch for large transfers (>$50k), map token IDs to market slugs, and trigger Grok analysis ("Whale bought $200k YES on BTC-15m-up — confirm or fade?"). Further research is needed to verify if CRE supports Polygon as a trigger chain.
 
@@ -62,8 +170,11 @@ This section lists some of interesting hacks and workarounds needed in order to 
 
 ## Disclaimer
 
-This project involves AI assistance in some parts, especially during the ideation process and workflow design, but most of the code (>90%) is hand-written and carefully checked by human. It is not yet audited and battle-tested, so use it **at your own risks**.
+This project involves AI assistance in some parts, especially during the ideation process and workflow design, but most of the code (>90%) is hand-written and carefully checked by human. It is not yet audited nor battle-tested, so use it **at your own risks**.
 
 ## References
 
-- [Polymarket Gasless Transactions](https://docs.polymarket.com/trading/gasless)
+- [Chainlink CRE Documentation](https://docs.chain.link/chainlink-functions/cre)
+- [xAI Responses API](https://docs.x.ai/docs/guides/responses)
+- [Polymarket Gamma API](https://gamma-api.polymarket.com/)
+- [News/Social Media and Price Movements (Springer, 2025)](https://link.springer.com/article/10.1007/s11147-025-09223-6)
