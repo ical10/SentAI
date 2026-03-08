@@ -290,7 +290,7 @@ export const fetchPrices = (
 	const network = getNetwork({
 		chainFamily: "evm",
 		chainSelectorName: config.chainSelectorName,
-		isTestnet: true,
+		isTestnet: config.isTestnet,
 	});
 
 	if (!network) {

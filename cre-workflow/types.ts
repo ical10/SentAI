@@ -24,6 +24,7 @@ export const configSchema = z.object({
 		.string()
 		.regex(/^\d+$/, "gasLimit must be a numeric string")
 		.refine((val) => Number(val) > 0, { message: "gasLimit must be greater than 0" }),
+	isTestnet: z.boolean(),
 	dataFeeds: z.record(
 		z.string().min(1),
 		z.string().regex(ETH_ADDRESS_REGEX, "Data feed proxy must be a valid Ethereum address"),

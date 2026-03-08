@@ -21,7 +21,7 @@ export const logDecision = (runtime: Runtime<Config>, decision: GrokDecision) =>
 	const network = getNetwork({
 		chainFamily: "evm",
 		chainSelectorName: runtime.config.chainSelectorName,
-		isTestnet: true,
+		isTestnet: runtime.config.isTestnet,
 	});
 
 	if (!network) {
