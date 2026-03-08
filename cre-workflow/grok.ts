@@ -99,6 +99,12 @@ const buildUserPrompt = (
 	const cappedMarkets = markets.slice(0, MAX_MARKETS);
 	const cappedQuestions = questions.slice(0, MAX_MARKETS);
 
+	if (markets.length !== questions.length) {
+		throw new Error(
+			`Markets (${markets.length}) and questions (${questions.length}) length mismatch`,
+		);
+	}
+
 	const priceLines = Object.keys(prices)
 		.sort()
 		.map((token) => `${token}/USD: $${(Number(prices[token]) / 1e8).toFixed(2)}`)
