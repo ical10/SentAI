@@ -45,8 +45,16 @@ const onCronTrigger = (runtime: Runtime<Config>, payload: CronPayload): string =
 
 	const questions = markets.map((m) => m.question);
 	const result = askGrok(runtime, markets, prices, questions);
-	const parsedContent = JSON.parse(result.content);
-	const decisions = GrokDecisionsSchema.parse(parsedContent);
+
+	let decisions;
+	try {
+		const parsedContent = JSON.parse(result.content);
+		decisions = GrokDecisionsSchema.parse(parsedContent);
+	} catch (err) {
+		const message = err instanceof Error ? err.message : String(err);
+		runtime.log(`Failed to parse Grok response: ${message}`);
+		return JSON.stringify({ action: "HOLD", reason: "parse_error" });
+	}
 
 	for (const decision of decisions) {
 		runtime.log(
