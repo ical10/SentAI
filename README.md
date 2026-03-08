@@ -14,15 +14,15 @@ It is an on-chain end-to-end automated process called "workflow" to generate Pol
 
 ## Tech Stack
 
-| Component             | Role                                              |
-| --------------------- | ------------------------------------------------- |
-| CRE                   | Workflow orchestration, consensus, signed reports |
-| Chainlink Price Feeds | On-chain BTC/ETH prices (AggregatorV3)            |
-| xAI Grok              | Sentiment analysis via X Search                   |
-| Polymarket Gamma API  | Active market discovery                           |
-| SentAILogger.sol      | On-chain decision logging                         |
-| Zod                   | Response validation                               |
-| viem                  | ABI encoding/decoding                             |
+| Component             | Role                                              | Key Files                        |
+| --------------------- | ------------------------------------------------- | -------------------------------- |
+| CRE                   | Workflow orchestration, consensus, signed reports | `main.ts`, `logger.ts`           |
+| Chainlink Price Feeds | On-chain BTC/ETH prices (AggregatorV3)            | `data.ts`                        |
+| xAI Grok              | Sentiment analysis via X Search                   | `grok.ts`                        |
+| Polymarket Gamma API  | Active market discovery                           | `data.ts`                        |
+| SentAILogger.sol      | On-chain decision logging                         | `contracts/src/SentAILogger.sol` |
+| Zod                   | Response validation                               | `types.ts`                       |
+| viem                  | ABI encoding/decoding                             | `data.ts`, `logger.ts`           |
 
 ## Architecture Diagram
 
