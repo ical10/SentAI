@@ -15,8 +15,8 @@ contract SentAILogger is ReceiverTemplate {
 	}
 
 	uint256 public decisionCount;
-	mapping(uint256 => Decision) public decisions;
-	mapping(bytes32 => uint256[]) public decisionsBySlug; // keccak256(slug) -> decision IDs
+	mapping(uint256 => Decision) private decisions;
+	mapping(bytes32 => uint256[]) private decisionsBySlug; // keccak256(slug) -> decision IDs
 
 	event SentAIDecision(
 		uint256 indexed id, // cross-reference with getDecision(id)
@@ -29,7 +29,7 @@ contract SentAILogger is ReceiverTemplate {
 		uint256 suggestedPrice
 	);
 
-	mapping(bytes32 => bool) public processedReports;
+	mapping(bytes32 => bool) private processedReports;
 
 	constructor(address forwarder) ReceiverTemplate(forwarder) {}
 
@@ -84,5 +84,9 @@ contract SentAILogger is ReceiverTemplate {
 	function getDecisionsBySlug(string calldata slug) external view returns (uint256[] memory) {
 		bytes32 slugHash = keccak256(bytes(slug));
 		return decisionsBySlug[slugHash];
+	}
+
+	function isReportProcessed(bytes32 reportHash) external view returns (bool) {
+		return processedReports[reportHash];
 	}
 }
