@@ -10,7 +10,7 @@ SentAI is built during **Convergence | A Chainlink Hackathon 2026** using primar
 
 for **CRE & AI** track.
 
-It is an on-chain end-to-end automated process called "workflow" to generate Polymarket market decisions based on X posts analysis and to then publish them on-chain. Successfully generated market decisions can be verified on a smart contract deployed on Sepolia.
+It is a consensus-safe end-to-end automated process called "workflow" to generate Polymarket market decisions based on X posts analysis and to then publish them on-chain. Successfully generated market decisions can be verified on a smart contract deployed on Sepolia.
 
 ## Tech Stack
 
